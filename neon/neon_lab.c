@@ -1,6 +1,6 @@
 /* EE277A SIMD Lab Assignment
  *
- * arm neon programing, test on ti am335x
+ * arm neon programing 
  *
  * compile: arm-linux-gnueabihf-gcc -Wall -std=gnu99 -O0 -mcpu=cortex-a8 -mfloat-abi=hard -mfpu=neon 
  */
@@ -34,31 +34,57 @@ int sad(const unsigned char *im1_p, const unsigned char *im2_p, int numcols)
 	gettimeofday(&begin, NULL);
 	
 	/* ------------------- compare one pair of 16x16 blocks ----------------------- */
-	unsigned int total = 0;
-	uint16x8_t vec_tot = vmovq_n_u16(0);	// use uint8x16 will overflow
-	uint32x4_t sum0;
-	uint64x2_t sum1;
 	
-	for (int row = 0; row < 16; row++) {
-		uint8x16_t vec_img1, vec_img2, vec_abs;
-		
-		vec_img1 = vld1q_u8(im1_p);	// load img1
-		vec_img2 = vld1q_u8(im2_p);	// load img2
-		vec_abs = vabdq_u8(vec_img1, vec_img2);	// abs
-
-		/* add abs to total, use pairwise addition */
-		vec_tot = vpadalq_u8(vec_tot, vec_abs);
-		
-		im1_p += COLS;
-		im2_p += COLS;
+	/*	unsigned int total = 0;
+		for (int row = 0; row < 16; row++) {
+			for (int col = 0; col < 16; col++) {
+				total += abs(*im1_p - *im2_p);
+				im1_p = im1_p + 1 ; //= im1_p + 1; // increment image1 column ptr
+				im2_p = im2_p + 1 ; //= im2_p + 1; // increment image2 column ptr
+			}
+			im1_p = im1_p +  (COLS - 16);
+			im2_p = im2_p +  (COLS - 16);
 	}
-	/* convert */
-	sum0 = vpaddlq_u16(vec_tot);	// 16x8->32x4
-	sum1 = vpaddlq_u32(sum0);	// 32x4->64x2
-	total += (unsigned int)vgetq_lane_u64(sum1, 0);
-	total += (unsigned int)vgetq_lane_u64(sum1, 1);
-	/* ------------------------------------------------------------------------------*/
+	*/
 	
+	
+	unsigned int total = 0;
+	for(int row = 0; row < 16; ++row){
+		uint8x16_t im1, im2,absdif;
+		unit16x8_t sum;
+		// load the image to vector
+		im1 = vld1q_u8(im1_p);
+		im2 = vld1q_u8(im2_p);		
+		//absolute different
+		//uint8x8_t   vabd_u8(uint8x8_t a, uint8x8_t b);// VABD.U8 d0,d0,d0
+		absdif = vabdq_u8(im1, im2);
+		
+		/*
+			uint16x8_t vpaddlq_u8(uint8x16_t a);   // VPADDL.U8 q0,q0 
+		*/		
+		sum = vpadalq_u8(sum, absdif); //8x16->16x8
+		im1_p += CLOS;
+		im2_p += CLOS;
+	}
+	/* ------------------------------------------------------------------------------*/
+	//8x16->16x8->32x4->64x2
+
+		/*	
+			This is faster than we 
+			reference
+
+		*/
+	/*
+		int32x2_t acc1;
+     	int64x1_t acc2;
+		acc1 = vpaddl_s16(acc);
+      	acc2 = vpaddl_s32(acc1);
+	*/
+	uint32x4_t sum1;
+	uint64x2_t sum2;
+	sum1 = paddl_u16(sum); //
+	sum2 = paddl_u32(sum1);
+
 	gettimeofday(&end, NULL);
 	timersub(&end, &begin, &diff);
 
